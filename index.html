@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fire Detection Web App</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+  body {
+    margin: 0;
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg, #ff5f6d, #ffc371);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    color:#333;
+  }
+  .container {
+    background: #fff;
+    border-radius: 15px;
+    padding: 30px;
+    max-width: 450px;
+    box-shadow: 0 15px 25px rgba(0,0,0,0.2);
+    text-align: center;
+  }
+  h1 {
+    margin-bottom: 20px;
+    color: #e94e1b;
+  }
+  input[type="file"] {
+    display: none;
+  }
+  label.upload-label {
+    background-color: #e94e1b;
+    color: white;
+    padding: 13px 25px;
+    border-radius: 50px;
+    cursor: pointer;
+    display: inline-block;
+    font-weight: 600;
+    box-shadow: 0 5px 15px rgba(233,78,27,0.4);
+    transition: background-color 0.3s ease;
+  }
+  label.upload-label:hover {
+    background-color: #cb4018;
+  }
+  .image-preview {
+    margin-top: 20px;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    display:none;
+  }
+  .image-preview img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  button.predict-btn {
+    margin-top: 25px;
+    background-color: #e94e1b;
+    color: white;
+    border: none;
+    padding: 14px 35px;
+    border-radius: 50px;
+    font-weight: 700;
+    font-size: 1.1rem;
+    cursor: pointer;
+    box-shadow: 0 7px 20px rgba(233,78,27,0.5);
+    transition: background-color 0.3s ease;
+    width: 100%;
+  }
+  button.predict-btn:disabled {
+    background-color: #f7b59e;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+  button.predict-btn:hover:not(:disabled) {
+    background-color: #cb4018;
+  }
+  .result {
+    margin-top: 30px;
+    font-size: 1.3rem;
+    font-weight: 700;
+    padding: 15px;
+    border-radius: 12px;
+    user-select: none;
+  }
+  .result.fire {
+    color: #b71c1c;
+    background-color: #ffdada;
+    border: 2px solid #b71c1c;
+  }
+  .result.no-fire {
+    color: #1b5e20;
+    background-color: #d0f0c0;
+    border: 2px solid #1b5e20;
+  }
+  footer {
+    margin-top: 40px;
+    font-size: 0.9rem;
+    color: #555;
+  }
+
+  @media (max-width: 480px) {
+    .container {
+      max-width: 100%;
+      padding: 20px;
+    }
+    button.predict-btn {
+      font-size: 1rem;
+      padding: 12px 20px;
+    }
+  }
+</style>
+</head>
+<body>
+  <div class="container" role="main">
+    <h1>Fire Detection Web App</h1>
+    <p>Upload an image to detect if there is fire present.</p>
+    <input type="file" id="imageInput" accept="image/*" />
+    <label for="imageInput" class="upload-label" aria-label="Upload image for fire detection">Choose Image</label>
+
+    <div class="image-preview" aria-live="polite" aria-atomic="true">
+      <img id="previewImg" alt="Uploaded image preview" />
+    </div>
+
+    <button id="predictBtn" class="predict-btn" disabled aria-disabled="true" aria-label="Detect fire in uploaded image">Detect Fire</button>
+
+    <div id="result" class="result" role="alert" aria-live="assertive" style="display:none;"></div>
+
+    <footer>
+      <p>Powered by your trained Custom Vision model.<br/>Designed for internship purpose.</p>
+    </footer>
+  </div>
+
+<script>
+  const PREDICTION_KEY = "3AnTPbU2z24dumizGnybkpUtS7QaVzFnNNFFiRgz8yArYBnnMEm3JQQJ99BEACGhslBXJ3w3AAAIACOGufKH";
+  const PREDICTION_URL = "https://cvpcbdetector-prediction.cognitiveservices.azure.com/customvision/v3.0/Prediction/803f0aa3-2ada-4f7f-b9f4-16046577b0d8/classify/iterations/Iteration1/image";
+
+  const imageInput = document.getElementById('imageInput');
+  const previewImg = document.getElementById('previewImg');
+  const imagePreview = document.querySelector('.image-preview');
+  const predictBtn = document.getElementById('predictBtn');
+  const resultDiv = document.getElementById('result');
+  let selectedImage = null;
+
+  imageInput.addEventListener('change', event => {
+    const file = event.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        previewImg.src = e.target.result;
+        imagePreview.style.display = 'block';
+        resultDiv.style.display = 'none';
+        predictBtn.disabled = false;
+        predictBtn.setAttribute('aria-disabled', 'false');
+        selectedImage = file;
+      };
+      reader.readAsDataURL(file);
+    } else {
+      imagePreview.style.display = 'none';
+      predictBtn.disabled = true;
+      predictBtn.setAttribute('aria-disabled', 'true');
+      resultDiv.style.display = 'none';
+      selectedImage = null;
+    }
+  });
+
+  async function predictImage(imageFile) {
+    try {
+      const response = await fetch(PREDICTION_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'Prediction-Key': PREDICTION_KEY
+        },
+        body: imageFile
+      });
+      if (!response.ok) {
+        throw new Error(`Prediction request failed with status ${response.status}`);
+      }
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  predictBtn.addEventListener('click', async () => {
+    if (!selectedImage) return;
+
+    predictBtn.disabled = true;
+    predictBtn.textContent = 'Detecting...';
+    resultDiv.style.display = 'none';
+    resultDiv.textContent = '';
+
+    try {
+      const predictionData = await predictImage(selectedImage);
+      // predictionData.predictions is an array of prediction results
+      // Find the highest probability prediction
+      const predictions = predictionData.predictions;
+      if (!predictions || predictions.length === 0) {
+        resultDiv.textContent = "No predictions returned.";
+        resultDiv.className = "result";
+        resultDiv.style.display = "block";
+      } else {
+        // Sort predictions by probability descending
+        predictions.sort((a, b) => b.probability - a.probability);
+        const bestPrediction = predictions[0];
+        if (bestPrediction.tagName.toLowerCase().includes('fire') && bestPrediction.probability > 0.5) {
+          resultDiv.textContent = `🔥 Fire Detected! Confidence: ${(bestPrediction.probability * 100).toFixed(2)}%`;
+          resultDiv.className = 'result fire';
+        } else {
+          resultDiv.textContent = `✅ No Fire Detected. Confidence: ${(bestPrediction.probability * 100).toFixed(2)}%`;
+          resultDiv.className = 'result no-fire';
+        }
+        resultDiv.style.display = 'block';
+      }
+    } catch (error) {
+      resultDiv.textContent = `Error: ${error.message}`;
+      resultDiv.className = 'result';
+      resultDiv.style.display = 'block';
+    } finally {
+      predictBtn.disabled = false;
+      predictBtn.textContent = 'Detect Fire';
+    }
+  });
+</script>
+</body>
+</html>
